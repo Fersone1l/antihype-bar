@@ -13,7 +13,7 @@ public class AuthService {
     private final UserStorage userStorage;
 
     CreateResponse create() {
-        return null;
+        return userStorage.create();
     }
 
     ProfileResponse getProfile(String authorization) {

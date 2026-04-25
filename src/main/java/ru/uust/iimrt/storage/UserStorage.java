@@ -15,6 +15,5 @@ public interface UserStorage {
     Boolean containsUserToken(String token);
 
     User getUserByToken(String token);
-
 }
 
