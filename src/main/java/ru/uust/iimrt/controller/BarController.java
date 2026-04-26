@@ -8,7 +8,13 @@ import ru.uust.iimrt.dto.request.OrderRequest;
 import ru.uust.iimrt.dto.response.MenuResponse;
 import ru.uust.iimrt.dto.response.MixResponse;
 import ru.uust.iimrt.dto.response.OrderResponse;
+import ru.uust.iimrt.exception.UnknownDrinkException;
+import ru.uust.iimrt.exception.UnknownRecipeException;
+import ru.uust.iimrt.model.BarmenMoods;
+import ru.uust.iimrt.model.DrinkType;
+import ru.uust.iimrt.model.User;
 import ru.uust.iimrt.service.BarService;
+import ru.uust.iimrt.storage.UserStorage;
 import ru.uust.iimrt.util.TimeUtils;
 import ru.uust.iimrt.util.TokenUtils;
 
@@ -20,6 +26,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BarController {
     private final BarService barService;
+    private final UserStorage userStorage;
 
     @PostMapping("/order")
     @ResponseStatus(HttpStatus.OK)
@@ -29,7 +36,18 @@ public class BarController {
             @RequestBody OrderRequest request) {
         String validTime = TimeUtils.extractTime(time);
         String token = TokenUtils.extractToken(authorization);
-        return barService.makeOrder(token, validTime, request.getDrinkType());
+
+        DrinkType drink;
+        try {
+            drink = request.getDrinkType();
+        } catch (IllegalArgumentException e) {
+            User user = userStorage.getUserByToken(token);
+            BarmenMoods mood = user != null ? user.getBarmenMood() : BarmenMoods.NORMAL;
+            int balance = user != null ? user.getBalance() : 0;
+            throw new UnknownDrinkException(balance, mood);
+        }
+
+        return barService.makeOrder(token, validTime, drink);
     }
 
     @PostMapping("/mix")
@@ -52,6 +70,4 @@ public class BarController {
         String validTime = TimeUtils.extractTime(time);
         return barService.getMenu(token, validTime);
     }
-
-
 }

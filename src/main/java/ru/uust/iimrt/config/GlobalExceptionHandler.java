@@ -1,6 +1,7 @@
 package ru.uust.iimrt.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,42 +15,45 @@ import ru.uust.iimrt.exception.UnknownRecipeException;
 
 import java.util.Map;
 
-
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    // 401 — неавторизован (пустое тело)
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<Void> handleUnauthorized() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
-    // 405 — Method Not Allowed
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Map<String, String>> handleMethodNotAllowed() {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(Map.of("detail", "Method Not Allowed"));
     }
 
-    // unknown_drink
     @ExceptionHandler(UnknownDrinkException.class)
-    public ResponseEntity<ErrorResponse> handleUnknownDrink() {
-        return ResponseEntity.ok(new ErrorResponse("unknown_drink"));
+    public ResponseEntity<ErrorResponse> handleUnknownDrink(UnknownDrinkException e) {
+        ErrorResponse response = new ErrorResponse("unknown_drink");
+        response.setBalance(e.getBalance());
+        response.setMood_level(e.getMood().toString());
+        return ResponseEntity.ok(response);
     }
 
-    // unknown_recipe
     @ExceptionHandler(UnknownRecipeException.class)
-    public ResponseEntity<ErrorResponse> handleUnknownRecipe() {
-        return ResponseEntity.ok(new ErrorResponse("unknown_recipe"));
+    public ResponseEntity<ErrorResponse> handleUnknownRecipe(UnknownRecipeException e) {
+        ErrorResponse response = new ErrorResponse("unknown_recipe");
+        response.setBalance(e.getBalance());
+        response.setMood_level(e.getMood().toString());
+        return ResponseEntity.ok(response);
     }
 
-    // insufficient_funds
     @ExceptionHandler(InsufficientFundsException.class)
-    public ResponseEntity<ErrorResponse> handleInsufficientFunds() {
-        return ResponseEntity.ok(new ErrorResponse("insufficient_funds"));
+    public ResponseEntity<ErrorResponse> handleInsufficientFunds(InsufficientFundsException e) {
+        ErrorResponse response = new ErrorResponse("insufficient_funds");
+        response.setPrice(e.getPrice());
+        response.setBalance(e.getBalance());
+        response.setMood_level(e.getMood().toString());
+        return ResponseEntity.ok(response);
     }
 
-    // Все остальные ошибки — 500
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneral() {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -59,9 +63,13 @@ public class GlobalExceptionHandler {
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"status", "error", "price", "balance", "mood_level"})
 class ErrorResponse {
     private String status = "error";
     private String error;
+    private Integer price;
+    private Integer balance;
+    private String mood_level;
 
     public ErrorResponse(String error) {
         this.error = error;
