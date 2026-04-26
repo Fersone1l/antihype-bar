@@ -16,6 +16,9 @@ public class BarService {
     private final BarStorage barStorage;
     private final UserStorage userStorage;
 
+    // Счётчики для отслеживания "каждый 4-й русский"
+    private final Map<String, Integer> russianCounters = new HashMap<>();
+
     /**
      * Получить меню с ценами в зависимости от настроения и времени
      */
@@ -35,6 +38,11 @@ public class BarService {
         List<IngredientsMenuResponse> drinks = new ArrayList<>();
         for (var entry : prices.entrySet()) {
             DrinkType drinkType = entry.getKey();
+
+            // HOSTILE отказывается от сложных коктейлей
+            if (mood == BarmenMoods.HOSTILE && isComplexDrink(drinkType)) {
+                continue;
+            }
 
             IngredientsMenuResponse drink = new IngredientsMenuResponse();
             drink.setName(drinkType.getRussianName());
@@ -71,6 +79,11 @@ public class BarService {
         boolean isNight = TimeUtils.isNightTime(validTime);
         DrinkType favorite = barStorage.getFavoriteDrink(token);
 
+        // HOSTILE отказывается от сложных коктейлей
+        if (mood == BarmenMoods.HOSTILE && isComplexDrink(drink)) {
+            return OrderResponse.error("unknown_drink", user.getBalance(), mood);
+        }
+
         // Проверяем доступность напитка в зависимости от времени суток
         if (isNight && !drink.isNightOnly()) {
             return OrderResponse.error("unknown_drink", user.getBalance(), mood);
@@ -91,10 +104,20 @@ public class BarService {
         barStorage.makeOrder(token, drink, mood, "order", isNight, isFavorite);
         user.setBalance(user.getBalance() - price);
 
-        // Обновляем статистику
-        updateUserStats(user);
+        // Специальная логика для "Русского"
+        if (drink == DrinkType.RUSSIAN) {
+            int count = russianCounters.getOrDefault(token, 0) + 1;
+            russianCounters.put(token, count);
+            if (count % 4 == 0) {
+                user.setBarmenMood(user.getBarmenMood().shift(1));
+                russianCounters.put(token, 0); // Сбрасываем счётчик
+            }
+        }
 
-        // Проверяем изменение настроения
+        // Обновляем статистику
+        updateUserStats(user, validTime);
+
+        // Проверяем изменение настроения после заказа
         checkMoodChange(user, validTime);
 
         return new OrderResponse(drink, price, user.getBalance(), user.getBarmenMood());
@@ -123,6 +146,18 @@ public class BarService {
             return MixResponse.error("unknown_recipe", user.getBalance(), mood);
         }
 
+        // Проверяем секретные комбинации, меняющие настроение
+        BarmenMoods newMood = checkSecretMix(ingredients, mood);
+        if (newMood != null) {
+            user.setBarmenMood(newMood);
+            return new MixResponse(
+                    findDrinkByIngredients(ingredients),
+                    0,
+                    user.getBalance(),
+                    user.getBarmenMood()
+            );
+        }
+
         // Ищем напиток по ингредиентам
         var foundDrink = RecipeMenu.findByIngredients(ingredients);
         if (foundDrink.isEmpty()) {
@@ -130,6 +165,11 @@ public class BarService {
         }
 
         DrinkType drink = foundDrink.get();
+
+        // HOSTILE отказывается от сложных коктейлей
+        if (mood == BarmenMoods.HOSTILE && isComplexDrink(drink)) {
+            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+        }
 
         // Проверяем доступность напитка
         if (isNight && !drink.isNightOnly()) {
@@ -151,10 +191,56 @@ public class BarService {
         // Выполняем заказ через mix
         barStorage.makeOrder(token, drink, mood, "mix", isNight, isFavorite);
         user.setBalance(user.getBalance() - price);
-        updateUserStats(user);
+        updateUserStats(user, validTime);
         checkMoodChange(user, validTime);
 
         return new MixResponse(drink, price, user.getBalance(), user.getBarmenMood());
+    }
+
+    /**
+     * Проверка секретных комбинаций для /mix
+     */
+    private BarmenMoods checkSecretMix(List<Ingredient> ingredients, BarmenMoods currentMood) {
+        Set<Ingredient> set = new HashSet<>(ingredients);
+
+        // ["текила", "лёд", "молоко"] → GENEROUS
+        if (set.equals(Set.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK))) {
+            return BarmenMoods.GENEROUS;
+        }
+
+        // ["водка", "ром", "текила", "виски", "джин"] → HOSTILE
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
+                Ingredient.WHISKY, Ingredient.GIN))) {
+            return BarmenMoods.HOSTILE;
+        }
+
+        // ["водка", "ром", "молоко"] → зависит от текущего настроения
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
+            return switch (currentMood) {
+                case GENEROUS -> BarmenMoods.FRIENDLY;
+                case FRIENDLY -> BarmenMoods.GRUMPY;
+                case NORMAL -> BarmenMoods.HOSTILE;
+                case GRUMPY -> BarmenMoods.HOSTILE;
+                default -> currentMood;
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * Найти напиток по ингредиентам (для секретных миксов)
+     */
+    private DrinkType findDrinkByIngredients(List<Ingredient> ingredients) {
+        var found = RecipeMenu.findByIngredients(ingredients);
+        return found.orElse(DrinkType.RUSSIAN); // fallback
+    }
+
+    /**
+     * Сложные коктейли, от которых HOSTILE отказывается
+     */
+    private boolean isComplexDrink(DrinkType drink) {
+        return drink == DrinkType.LONG_ISLAND || drink == DrinkType.WHITE_RUSSIAN;
     }
 
     /**
@@ -194,21 +280,19 @@ public class BarService {
             return baseMood.shift(2);
         }
 
-        // Днём — обычное настроение
         return baseMood;
     }
 
     /**
      * Обновление статистики пользователя
      */
-    private void updateUserStats(User user) {
+    private void updateUserStats(User user, String time) {
         int totalOrders = barStorage.getTotalOrders(user.getToken());
 
         // Повышаем ранг каждые 5 заказов
         if (totalOrders > 0 && totalOrders % 5 == 0) {
             Rank[] ranks = Rank.values();
             int currentIndex = user.getRank().ordinal();
-
             if (currentIndex < ranks.length - 1) {
                 user.setRank(ranks[currentIndex + 1]);
             }
@@ -223,11 +307,6 @@ public class BarService {
 
         // Каждый 10-й заказ улучшает настроение
         if (totalOrders > 0 && totalOrders % 10 == 0) {
-            user.setBarmenMood(user.getBarmenMood().shift(1));
-        }
-
-        // Каждый 3-й заказ ночью делает щедрее
-        if (totalOrders > 0 && totalOrders % 3 == 0 && TimeUtils.isNightTime(time)) {
             user.setBarmenMood(user.getBarmenMood().shift(1));
         }
     }

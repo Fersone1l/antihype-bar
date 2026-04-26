@@ -203,7 +203,14 @@ public enum DrinkType {
                     BarmenMoods.FRIENDLY, 6,
                     BarmenMoods.GENEROUS, 5
             ),
+
             List.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC)
+    ),
+    // В конец enum добавь:
+    SECRET("Секретный коктейль", false, true,
+            Map.of(),
+            Map.of(),
+            List.of()
     );
 
     private final String russianName;
@@ -247,6 +254,7 @@ public enum DrinkType {
         }
         throw new IllegalArgumentException("Unknown drink: " + russianName);
     }
+
 
     @Override
     public String toString() {
