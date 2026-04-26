@@ -1,5 +1,6 @@
 package ru.uust.iimrt.storage.memory;
 
+import lombok.Setter;
 import org.springframework.stereotype.Component;
 import ru.uust.iimrt.dto.response.CreateResponse;
 import ru.uust.iimrt.dto.response.ProfileResponse;
@@ -7,6 +8,7 @@ import ru.uust.iimrt.dto.response.ResetResponse;
 import ru.uust.iimrt.model.BarmenMoods;
 import ru.uust.iimrt.model.Rank;
 import ru.uust.iimrt.model.User;
+import ru.uust.iimrt.storage.BarStorage;
 import ru.uust.iimrt.storage.UserStorage;
 
 import java.security.MessageDigest;
@@ -18,9 +20,25 @@ public class InMemoryUserStorage implements UserStorage {
     private final Map<String, User> users = new HashMap<>();
     private static long usersCount = 0;
 
+    @Setter
+    private BarStorage barStorage;
+
     @Override
     public ProfileResponse profile(String token) {
-        return null;
+        User user = users.get(token);
+        if (user == null) return null;
+
+        int totalOrders = barStorage != null ? barStorage.getTotalOrders(token) : 0;
+        int uniqueDrinks = barStorage != null ? barStorage.getUniqueDrinks(token).size() : 0;
+
+        return new ProfileResponse(
+                "BAR-" + String.format("%04d", getUserId(token)),
+                user.getRank().getDisplayName(),
+                totalOrders,
+                uniqueDrinks,
+                barStorage != null ? barStorage.getFavoriteDrink(token) : null,
+                user.isBarClosed()
+        );
     }
 
     @Override
@@ -30,7 +48,7 @@ public class InMemoryUserStorage implements UserStorage {
         String token = generateMD5(strId);
 
         users.put(token, new User(token,
-                Rank.BEGGINER,
+                Rank.BEGINNER,
                 100,
                 false,
                 BarmenMoods.NORMAL)
@@ -41,23 +59,19 @@ public class InMemoryUserStorage implements UserStorage {
 
     @Override
     public ResetResponse reset(String token) {
+        User user = users.get(token);
+        if (user != null) {
+            user.setBalance(100);
+            user.setRank(Rank.BEGINNER);
+            user.setBarClosed(false);
+            user.setBarmenMood(BarmenMoods.NORMAL);
+        }
         return new ResetResponse("ok");
     }
 
-//    @Override
-//    public ProfileResponse profile(String token) {
-//        User user = users.get(token);
-//        return new ProfileResponse(user.getToken(),
-//                UserToStringRank(user),
-//                user.getTotalOrders(),
-//                user.getUniqueDrinks().size(),
-//                user.getFavorite_drink(),
-//                );
-//    }
-
     @Override
     public Boolean containsUserToken(String token) {
-        return null;
+        return users.containsKey(token);
     }
 
     @Override
@@ -65,12 +79,22 @@ public class InMemoryUserStorage implements UserStorage {
         return users.get(token);
     }
 
+    private long getUserId(String token) {
+        // Ищем ID пользователя по токену
+        for (Map.Entry<String, User> entry : users.entrySet()) {
+            if (entry.getKey().equals(token)) {
+                // Извлекаем номер из ID типа "BAR-0001"
+                return usersCount; // Заглушка
+            }
+        }
+        return 0;
+    }
+
     private static String generateMD5(String input) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
             byte[] hash = md.digest(input.getBytes());
 
-            // Конвертируем в hex строку
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
                 String hex = Integer.toHexString(0xFF & b);
@@ -78,22 +102,8 @@ public class InMemoryUserStorage implements UserStorage {
                 hexString.append(hex);
             }
             return hexString.toString();
-
         } catch (Exception e) {
             throw new RuntimeException("MD5 generation failed", e);
-        }
-    }
-
-    private String UserToStringRank(User user) {
-        Rank rank = user.getRank();
-
-        switch (rank) {
-            case BEGGINER -> {
-                return "Новичок";
-            }
-            default -> {
-                throw new RuntimeException("Error");
-            }
         }
     }
 }

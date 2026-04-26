@@ -1,14 +1,13 @@
 package ru.uust.iimrt.dto.request;
 
 import lombok.Data;
-import lombok.Setter;
 import ru.uust.iimrt.model.DrinkType;
 
-@Setter
+@Data
 public class OrderRequest {
     private String name;
 
-    public DrinkType getName() {
+    public DrinkType getDrinkType() {
         return DrinkType.fromRussianName(name);
     }
 }

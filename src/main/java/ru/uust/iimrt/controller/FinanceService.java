@@ -37,10 +37,10 @@ public class FinanceService {
     @ResponseStatus(HttpStatus.OK)
     public TipResponse tipBarmen(
             @RequestHeader("Authorization") String authorization,
-            @RequestBody Map<String, List<String>> request) {
+            @RequestBody Map<String, Object> request) {
         String token = TokenUtils.extractToken(authorization);
-        List<String> amount = request.get("amount");
-        return paymentService.tipBarmen(token, amount.get(0));
+        int amount = (Integer) request.get("amount");
+        return paymentService.tipBarmen(token, String.valueOf(amount));
     }
 
 }

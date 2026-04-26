@@ -3,28 +3,37 @@ package ru.uust.iimrt.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.uust.iimrt.dto.response.BalanceResponse;
-import ru.uust.iimrt.dto.response.HistoryResponse;
 import ru.uust.iimrt.dto.response.TipResponse;
+import ru.uust.iimrt.model.BarmenMoods;
 import ru.uust.iimrt.model.User;
+import ru.uust.iimrt.storage.UserStorage;
 
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class PaymentService {
-    private final AuthService authService;
+    private final UserStorage userStorage;
 
-    public BalanceResponse getBalance(String authorization) {
-        User user = authService.getUserByToken(authorization);
+    public BalanceResponse getBalance(String token) {
+        User user = userStorage.getUserByToken(token);
         return new BalanceResponse(user.getBalance(), user.getBarmenMood().toString());
     }
 
-    public TipResponse tipBarmen(String authorization,
-                                 String amountStr) {
+    public TipResponse tipBarmen(String token, String amountStr) {
         int amount = Integer.parseInt(amountStr);
-        User user = authService.getUserByToken(authorization);
-        return new TipResponse(amount, user.getBalance(), user.getBarmenMood().toString());
-    }
+        User user = userStorage.getUserByToken(token);
 
-//    public HistoryResponse getHistory(String authorization) {
-//        return new HistoryResponse()
-//    }
+        BarmenMoods mood = user.getBarmenMood();
+        int tipModifier = mood.getTipModifier();
+        int actualTip = amount + tipModifier;
+
+        // Обновляем баланс
+        user.setBalance(user.getBalance() - amount + tipModifier);
+
+        // Чаевые улучшают настроение
+        if (amount >= 5) {
+            user.setBarmenMood(mood.shift(1));
+        }
+
+        return new TipResponse(actualTip, user.getBalance(), user.getBarmenMood().toString());
+    }
 }

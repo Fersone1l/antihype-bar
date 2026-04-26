@@ -1,16 +1,22 @@
 package ru.uust.iimrt.dto.response;
 
-import lombok.AllArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 import ru.uust.iimrt.model.Order;
 import java.util.List;
 
 @Data
-@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class HistoryResponse {
-    List<Order> orders;
+    private String status = "ok";
+    private List<Order> orders;
+    private int balance;
+    private String mood_level;
 
-    int balance;
-
-    String mood_level;
+    public HistoryResponse(List<Order> orders, int balance, String moodLevel) {
+        this.status = "ok";
+        this.orders = orders;
+        this.balance = balance;
+        this.mood_level = moodLevel;
+    }
 }

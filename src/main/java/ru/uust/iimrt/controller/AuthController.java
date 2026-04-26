@@ -26,9 +26,8 @@ public class AuthController {
     @PostMapping("/reset")
     @ResponseStatus(HttpStatus.OK)
     public ResetResponse resetUser(@RequestHeader("Authorization") String authorization) {
-        authService.reset(authorization);
         String token = TokenUtils.extractToken(authorization);
-        return authService.reset(token);  // 200 OK, пустое тело
+        return authService.reset(token);
     }
 
     @GetMapping("/profile")

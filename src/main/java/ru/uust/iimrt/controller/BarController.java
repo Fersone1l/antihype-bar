@@ -29,18 +29,20 @@ public class BarController {
             @RequestBody OrderRequest request) {
         String validTime = TimeUtils.extractTime(time);
         String token = TokenUtils.extractToken(authorization);
-        return barService.makeOrder(token, validTime, request.getName());
+        return barService.makeOrder(token, validTime, request.getDrinkType());
     }
 
-//    @PostMapping("/mix")
-//    @ResponseStatus(HttpStatus.OK)
-//    public MixResponse mixDrinks(
-//            @RequestHeader("Authorization") String authorization,
-//            @RequestHeader(value = "X-Time", required = false) String time,
-//            @RequestBody Map<String, List<String>> request) {
-//        List<String> ingredients = request.get("ingredients");
-//        return BarService.mixDrinks(authorization, time, ingredients);
-//    }
+    @PostMapping("/mix")
+    @ResponseStatus(HttpStatus.OK)
+    public MixResponse mixDrinks(
+            @RequestHeader("Authorization") String authorization,
+            @RequestHeader(value = "X-Time", required = false) String time,
+            @RequestBody Map<String, List<String>> request) {
+        String token = TokenUtils.extractToken(authorization);
+        String validTime = TimeUtils.extractTime(time);
+        List<String> ingredients = request.get("ingredients");
+        return barService.mixDrinks(token, validTime, ingredients);
+    }
 
     @GetMapping("/menu")
     @ResponseStatus(HttpStatus.OK)
