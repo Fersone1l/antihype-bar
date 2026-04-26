@@ -3,6 +3,10 @@ package ru.uust.iimrt.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.uust.iimrt.dto.response.*;
+import ru.uust.iimrt.exception.InsufficientFundsException;
+import ru.uust.iimrt.exception.UnauthorizedException;
+import ru.uust.iimrt.exception.UnknownDrinkException;
+import ru.uust.iimrt.exception.UnknownRecipeException;
 import ru.uust.iimrt.model.*;
 import ru.uust.iimrt.storage.BarStorage;
 import ru.uust.iimrt.storage.UserStorage;
@@ -25,7 +29,7 @@ public class BarService {
     public MenuResponse getMenu(String token, String time) {
         User user = userStorage.getUserByToken(token);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new UnauthorizedException("User not found");
         }
 
         String validTime = TimeUtils.extractTime(time);
@@ -39,7 +43,6 @@ public class BarService {
         for (var entry : prices.entrySet()) {
             DrinkType drinkType = entry.getKey();
 
-            // HOSTILE отказывается от сложных коктейлей
             if (mood == BarmenMoods.HOSTILE && isComplexDrink(drinkType)) {
                 continue;
             }
@@ -52,7 +55,6 @@ public class BarService {
                             .map(Ingredient::getRussianName)
                             .toList()
             );
-
             drinks.add(drink);
         }
 
@@ -71,7 +73,7 @@ public class BarService {
     public OrderResponse makeOrder(String token, String time, DrinkType drink) {
         User user = userStorage.getUserByToken(token);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new UnauthorizedException("User not found");
         }
 
         String validTime = TimeUtils.extractTime(time);
@@ -79,45 +81,40 @@ public class BarService {
         boolean isNight = TimeUtils.isNightTime(validTime);
         DrinkType favorite = barStorage.getFavoriteDrink(token);
 
-        // HOSTILE отказывается от сложных коктейлей
+        // HOSTILE отказывается
         if (mood == BarmenMoods.HOSTILE && isComplexDrink(drink)) {
-            return OrderResponse.error("unknown_drink", user.getBalance(), mood);
+            throw new UnknownDrinkException("Bartender refuses to make this drink");
         }
 
-        // Проверяем доступность напитка в зависимости от времени суток
+        // Проверка времени
         if (isNight && !drink.isNightOnly()) {
-            return OrderResponse.error("unknown_drink", user.getBalance(), mood);
+            throw new UnknownDrinkException("Not available at night");
         }
         if (!isNight && drink.isNightOnly()) {
-            return OrderResponse.error("unknown_drink", user.getBalance(), mood);
+            throw new UnknownDrinkException("Only available at night");
         }
 
         boolean isFavorite = (drink == favorite);
         int price = drink.getPrice(mood, isFavorite);
 
-        // Проверяем баланс
+        // Недостаточно средств
         if (user.getBalance() < price) {
-            return OrderResponse.error("insufficient_funds", price, user.getBalance(), mood);
+            throw new InsufficientFundsException("Not enough money");
         }
 
-        // Выполняем заказ
         barStorage.makeOrder(token, drink, mood, "order", isNight, isFavorite);
         user.setBalance(user.getBalance() - price);
 
-        // Специальная логика для "Русского"
         if (drink == DrinkType.RUSSIAN) {
             int count = russianCounters.getOrDefault(token, 0) + 1;
             russianCounters.put(token, count);
             if (count % 4 == 0) {
                 user.setBarmenMood(user.getBarmenMood().shift(1));
-                russianCounters.put(token, 0); // Сбрасываем счётчик
+                russianCounters.put(token, 0);
             }
         }
 
-        // Обновляем статистику
         updateUserStats(user, validTime);
-
-        // Проверяем изменение настроения после заказа
         checkMoodChange(user, validTime);
 
         return new OrderResponse(drink, price, user.getBalance(), user.getBarmenMood());
@@ -129,24 +126,23 @@ public class BarService {
     public MixResponse mixDrinks(String token, String time, List<String> ingredientNames) {
         User user = userStorage.getUserByToken(token);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            throw new UnauthorizedException("User not found");
         }
 
         String validTime = TimeUtils.extractTime(time);
         BarmenMoods mood = calculateMood(user, validTime);
         boolean isNight = TimeUtils.isNightTime(validTime);
 
-        // Конвертируем русские названия в enum
         List<Ingredient> ingredients;
         try {
             ingredients = ingredientNames.stream()
                     .map(Ingredient::fromRussianName)
                     .toList();
         } catch (IllegalArgumentException e) {
-            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+            throw new UnknownRecipeException("Unknown ingredient");
         }
 
-        // Проверяем секретные комбинации, меняющие настроение
+        // Секретные миксы
         BarmenMoods newMood = checkSecretMix(ingredients, mood);
         if (newMood != null) {
             user.setBarmenMood(newMood);
@@ -158,37 +154,32 @@ public class BarService {
             );
         }
 
-        // Ищем напиток по ингредиентам
         var foundDrink = RecipeMenu.findByIngredients(ingredients);
         if (foundDrink.isEmpty()) {
-            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+            throw new UnknownRecipeException("Unknown combination");
         }
 
         DrinkType drink = foundDrink.get();
 
-        // HOSTILE отказывается от сложных коктейлей
         if (mood == BarmenMoods.HOSTILE && isComplexDrink(drink)) {
-            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+            throw new UnknownRecipeException("Bartender refuses");
         }
 
-        // Проверяем доступность напитка
         if (isNight && !drink.isNightOnly()) {
-            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+            throw new UnknownRecipeException("Not available at night");
         }
         if (!isNight && drink.isNightOnly()) {
-            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+            throw new UnknownRecipeException("Only available at night");
         }
 
         DrinkType favorite = barStorage.getFavoriteDrink(token);
         boolean isFavorite = (drink == favorite);
         int price = drink.getPrice(mood, isFavorite);
 
-        // Проверяем баланс
         if (user.getBalance() < price) {
-            return MixResponse.error("insufficient_funds", price, user.getBalance(), mood);
+            throw new InsufficientFundsException("Not enough money");
         }
 
-        // Выполняем заказ через mix
         barStorage.makeOrder(token, drink, mood, "mix", isNight, isFavorite);
         user.setBalance(user.getBalance() - price);
         updateUserStats(user, validTime);
