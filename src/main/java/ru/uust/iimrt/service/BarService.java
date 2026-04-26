@@ -12,6 +12,7 @@ import ru.uust.iimrt.storage.BarStorage;
 import ru.uust.iimrt.storage.UserStorage;
 import ru.uust.iimrt.util.TimeUtils;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -24,9 +25,8 @@ public class BarService {
 
     public MenuResponse getMenu(String token, String time) {
         User user = userStorage.getUserByToken(token);
-        if (user == null) {
-            throw new UnauthorizedException("User not found");
-        }
+        if (user == null) throw new UnauthorizedException("User not found");
+        if (user.isBarClosed()) throw new UnauthorizedException("Bar closed");
 
         String validTime = TimeUtils.extractTime(time);
         boolean isNight = TimeUtils.isNightTime(validTime);
@@ -65,9 +65,8 @@ public class BarService {
 
     public OrderResponse makeOrder(String token, String time, DrinkType drink) {
         User user = userStorage.getUserByToken(token);
-        if (user == null) {
-            throw new UnauthorizedException("User not found");
-        }
+        if (user == null) throw new UnauthorizedException("User not found");
+        if (user.isBarClosed()) throw new UnauthorizedException("Bar closed");
 
         String validTime = TimeUtils.extractTime(time);
         boolean isNight = TimeUtils.isNightTime(validTime);
@@ -112,9 +111,8 @@ public class BarService {
 
     public MixResponse mixDrinks(String token, String time, List<String> ingredientNames) {
         User user = userStorage.getUserByToken(token);
-        if (user == null) {
-            throw new UnauthorizedException("User not found");
-        }
+        if (user == null) throw new UnauthorizedException("User not found");
+        if (user.isBarClosed()) throw new UnauthorizedException("Bar closed");
 
         String validTime = TimeUtils.extractTime(time);
         boolean isNight = TimeUtils.isNightTime(validTime);
@@ -155,11 +153,12 @@ public class BarService {
             return new MixResponse(DrinkType.ZELYE_BARMENA, 0, user.getBalance(), mood);
         }
 
-        // Армагеддон — обнуляет баланс и ставит HOSTILE
+        // Армагеддон — обнуляет баланс, ставит HOSTILE, закрывает бар на 10 минут
         if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
                 Ingredient.WHISKY, Ingredient.GIN))) {
             user.setBalance(0);
             user.setBarmenMood(BarmenMoods.HOSTILE);
+            user.setBarClosedUntil(LocalDateTime.now().plusMinutes(10));
             return new MixResponse(DrinkType.ARMAGEDDON, 0, 0, BarmenMoods.HOSTILE);
         }
 
