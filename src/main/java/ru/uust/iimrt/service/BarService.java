@@ -209,15 +209,9 @@ public class BarService {
     }
 
     private void updateUserStats(User user) {
-        int totalOrders = barStorage.getTotalOrders(user.getToken());
-
-        if (totalOrders > 0 && totalOrders % 5 == 0) {
-            Rank[] ranks = Rank.values();
-            int currentIndex = user.getRank().ordinal();
-            if (currentIndex < ranks.length - 1) {
-                user.setRank(ranks[currentIndex + 1]);
-            }
-        }
+        Set<DrinkType> uniqueDrinks = barStorage.getUniqueDrinks(user.getToken());
+        Rank newRank = Rank.fromUniqueDrinks(uniqueDrinks.size());
+        user.setRank(newRank);
     }
 
     private void checkMoodChange(User user) {
