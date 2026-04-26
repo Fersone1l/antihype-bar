@@ -129,36 +129,40 @@ public class BarService {
 
         Set<Ingredient> set = new HashSet<>(ingredients);
 
-        // Воздух — бесплатный, ничего не меняется
+        // Воздух
         if (set.isEmpty()) {
-            user.setBalance(user.getBalance() - 0);
+            barStorage.makeOrder(token, DrinkType.VOZDOKH, mood, "mix", false, false);
             return new MixResponse(DrinkType.VOZDOKH, 0, user.getBalance(), mood);
         }
 
-        // Мертвец — удваивает баланс
+// Мертвец
         if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
             user.setBalance(user.getBalance() * 2);
+            barStorage.makeOrder(token, DrinkType.MERTVEC, mood, "mix", false, false);
             return new MixResponse(DrinkType.MERTVEC, 0, user.getBalance(), mood);
         }
 
-        // Ошибка бармена — макс настроение (GENEROUS)
+// Ошибка бармена
         if (set.equals(Set.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK))) {
             user.setBarmenMood(BarmenMoods.GENEROUS);
+            barStorage.makeOrder(token, DrinkType.OSHIBA_BARMENA, BarmenMoods.GENEROUS, "mix", false, false);
             return new MixResponse(DrinkType.OSHIBA_BARMENA, 0, user.getBalance(), BarmenMoods.GENEROUS);
         }
 
-        // Зелье бармена — разблокирует секреты
+// Зелье бармена
         if (set.equals(Set.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE))) {
             user.setSecretUnlocked(true);
+            barStorage.makeOrder(token, DrinkType.ZELYE_BARMENA, mood, "mix", false, false);
             return new MixResponse(DrinkType.ZELYE_BARMENA, 0, user.getBalance(), mood);
         }
 
-        // Армагеддон — обнуляет баланс, ставит HOSTILE, закрывает бар на 10 минут
+// Армагеддон
         if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
                 Ingredient.WHISKY, Ingredient.GIN))) {
             user.setBalance(0);
             user.setBarmenMood(BarmenMoods.HOSTILE);
             user.setBarClosedUntil(LocalDateTime.now().plusMinutes(10));
+            barStorage.makeOrder(token, DrinkType.ARMAGEDDON, BarmenMoods.HOSTILE, "mix", false, false);
             return new MixResponse(DrinkType.ARMAGEDDON, 0, 0, BarmenMoods.HOSTILE);
         }
 
