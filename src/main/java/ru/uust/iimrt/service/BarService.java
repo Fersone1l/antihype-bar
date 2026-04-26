@@ -12,6 +12,7 @@ import ru.uust.iimrt.storage.BarStorage;
 import ru.uust.iimrt.storage.UserStorage;
 import ru.uust.iimrt.util.TimeUtils;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -24,9 +25,8 @@ public class BarService {
 
     public MenuResponse getMenu(String token, String time) {
         User user = userStorage.getUserByToken(token);
-        if (user == null) {
-            throw new UnauthorizedException("User not found");
-        }
+        if (user == null) throw new UnauthorizedException("User not found");
+        if (user.isBarClosed()) throw new UnauthorizedException("Bar closed");
 
         String validTime = TimeUtils.extractTime(time);
         boolean isNight = TimeUtils.isNightTime(validTime);
@@ -65,9 +65,8 @@ public class BarService {
 
     public OrderResponse makeOrder(String token, String time, DrinkType drink) {
         User user = userStorage.getUserByToken(token);
-        if (user == null) {
-            throw new UnauthorizedException("User not found");
-        }
+        if (user == null) throw new UnauthorizedException("User not found");
+        if (user.isBarClosed()) throw new UnauthorizedException("Bar closed");
 
         String validTime = TimeUtils.extractTime(time);
         boolean isNight = TimeUtils.isNightTime(validTime);
@@ -112,9 +111,8 @@ public class BarService {
 
     public MixResponse mixDrinks(String token, String time, List<String> ingredientNames) {
         User user = userStorage.getUserByToken(token);
-        if (user == null) {
-            throw new UnauthorizedException("User not found");
-        }
+        if (user == null) throw new UnauthorizedException("User not found");
+        if (user.isBarClosed()) throw new UnauthorizedException("Bar closed");
 
         String validTime = TimeUtils.extractTime(time);
         boolean isNight = TimeUtils.isNightTime(validTime);
@@ -129,17 +127,46 @@ public class BarService {
             throw new UnknownRecipeException(user.getBalance(), mood);
         }
 
-        BarmenMoods newMood = checkSecretMix(ingredients, mood);
-        if (newMood != null) {
-            user.setBarmenMood(newMood);
-            return new MixResponse(
-                    findDrinkByIngredients(ingredients),
-                    0,
-                    user.getBalance(),
-                    user.getBarmenMood()
-            );
+        Set<Ingredient> set = new HashSet<>(ingredients);
+
+        // Воздух
+        if (set.isEmpty()) {
+            barStorage.makeOrder(token, DrinkType.VOZDOKH, mood, "mix", false, false);
+            return new MixResponse(DrinkType.VOZDOKH, 0, user.getBalance(), mood);
         }
 
+// Мертвец
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
+            user.setBalance(user.getBalance() * 2);
+            barStorage.makeOrder(token, DrinkType.MERTVEC, mood, "mix", false, false);
+            return new MixResponse(DrinkType.MERTVEC, 0, user.getBalance(), mood);
+        }
+
+// Ошибка бармена
+        if (set.equals(Set.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK))) {
+            user.setBarmenMood(BarmenMoods.GENEROUS);
+            barStorage.makeOrder(token, DrinkType.OSHIBA_BARMENA, BarmenMoods.GENEROUS, "mix", false, false);
+            return new MixResponse(DrinkType.OSHIBA_BARMENA, 0, user.getBalance(), BarmenMoods.GENEROUS);
+        }
+
+// Зелье бармена
+        if (set.equals(Set.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE))) {
+            user.setSecretUnlocked(true);
+            barStorage.makeOrder(token, DrinkType.ZELYE_BARMENA, mood, "mix", false, false);
+            return new MixResponse(DrinkType.ZELYE_BARMENA, 0, user.getBalance(), mood);
+        }
+
+// Армагеддон
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
+                Ingredient.WHISKY, Ingredient.GIN))) {
+            user.setBalance(0);
+            user.setBarmenMood(BarmenMoods.HOSTILE);
+            user.setBarClosedUntil(LocalDateTime.now().plusMinutes(10));
+            barStorage.makeOrder(token, DrinkType.ARMAGEDDON, BarmenMoods.HOSTILE, "mix", false, false);
+            return new MixResponse(DrinkType.ARMAGEDDON, 0, 0, BarmenMoods.HOSTILE);
+        }
+
+        // Обычный поиск напитка
         var foundDrink = RecipeMenu.findByIngredients(ingredients);
         if (foundDrink.isEmpty()) {
             throw new UnknownRecipeException(user.getBalance(), mood);
@@ -174,26 +201,35 @@ public class BarService {
         return new MixResponse(drink, price, user.getBalance(), user.getBarmenMood());
     }
 
-    private BarmenMoods checkSecretMix(List<Ingredient> ingredients, BarmenMoods currentMood) {
+    private BarmenMoods checkSecretMix(List<Ingredient> ingredients, BarmenMoods currentMood, User user) {
         Set<Ingredient> set = new HashSet<>(ingredients);
 
+        // Воздух — ничего не делает
+        if (set.isEmpty()) {
+            return null; // Просто бесплатный напиток
+        }
+
+        // Мертвец — удваивает баланс
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
+            user.setBalance(user.getBalance() * 2);
+            return currentMood;
+        }
+
+        // Ошибка бармена — макс настроение
         if (set.equals(Set.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK))) {
             return BarmenMoods.GENEROUS;
         }
 
+        // Зелье бармена — разблокирует секреты
+        if (set.equals(Set.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE))) {
+            user.setSecretUnlocked(true);
+            return currentMood;
+        }
+
+        // Армагеддон — hostile
         if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
                 Ingredient.WHISKY, Ingredient.GIN))) {
             return BarmenMoods.HOSTILE;
-        }
-
-        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
-            return switch (currentMood) {
-                case GENEROUS -> BarmenMoods.FRIENDLY;
-                case FRIENDLY -> BarmenMoods.GRUMPY;
-                case NORMAL -> BarmenMoods.HOSTILE;
-                case GRUMPY -> BarmenMoods.HOSTILE;
-                default -> currentMood;
-            };
         }
 
         return null;
