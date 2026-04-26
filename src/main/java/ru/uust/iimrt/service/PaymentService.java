@@ -4,14 +4,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.uust.iimrt.dto.response.BalanceResponse;
 import ru.uust.iimrt.dto.response.TipResponse;
-import ru.uust.iimrt.model.BarmenMoods;
 import ru.uust.iimrt.model.User;
 import ru.uust.iimrt.storage.UserStorage;
 
-@Service
+import java.util.HashMap;
+import java.util.Map;
+
 @RequiredArgsConstructor
+@Service
 public class PaymentService {
     private final UserStorage userStorage;
+
+    // Счётчик чаевых для каждого пользователя
+    private final Map<String, Integer> tipTotals = new HashMap<>();
 
     public BalanceResponse getBalance(String token) {
         User user = userStorage.getUserByToken(token);
@@ -22,18 +27,20 @@ public class PaymentService {
         int amount = Integer.parseInt(amountStr);
         User user = userStorage.getUserByToken(token);
 
-        BarmenMoods mood = user.getBarmenMood();
-        int tipModifier = mood.getTipModifier();
-        int actualTip = amount + tipModifier;
+        // Списываем чаевые
+        user.setBalance(user.getBalance() - amount);
 
-        // Обновляем баланс
-        user.setBalance(user.getBalance() - amount + tipModifier);
+        // Суммируем чаевые
+        int totalTips = tipTotals.getOrDefault(token, 0) + amount;
 
-        // Чаевые улучшают настроение
-        if (amount >= 5) {
-            user.setBarmenMood(mood.shift(1));
+        // Каждые 20 монет — повышаем настроение на 1 уровень
+        while (totalTips >= 20) {
+            user.setBarmenMood(user.getBarmenMood().shift(1));
+            totalTips -= 20;
         }
 
-        return new TipResponse(actualTip, user.getBalance(), user.getBarmenMood().toString());
+        tipTotals.put(token, totalTips);
+
+        return new TipResponse(amount, user.getBalance(), user.getBarmenMood().toString());
     }
 }
