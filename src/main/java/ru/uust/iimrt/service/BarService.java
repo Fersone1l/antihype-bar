@@ -129,17 +129,41 @@ public class BarService {
             throw new UnknownRecipeException(user.getBalance(), mood);
         }
 
-        BarmenMoods newMood = checkSecretMix(ingredients, mood, user);
-        if (newMood != null) {
-            user.setBarmenMood(newMood);
-            return new MixResponse(
-                    findDrinkByIngredients(ingredients),
-                    0,
-                    user.getBalance(),
-                    user.getBarmenMood()
-            );
+        Set<Ingredient> set = new HashSet<>(ingredients);
+
+        // Воздух — бесплатный, ничего не меняется
+        if (set.isEmpty()) {
+            user.setBalance(user.getBalance() - 0);
+            return new MixResponse(DrinkType.VOZDOKH, 0, user.getBalance(), mood);
         }
 
+        // Мертвец — удваивает баланс
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
+            user.setBalance(user.getBalance() * 2);
+            return new MixResponse(DrinkType.MERTVEC, 0, user.getBalance(), mood);
+        }
+
+        // Ошибка бармена — макс настроение (GENEROUS)
+        if (set.equals(Set.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK))) {
+            user.setBarmenMood(BarmenMoods.GENEROUS);
+            return new MixResponse(DrinkType.OSHIBA_BARMENA, 0, user.getBalance(), BarmenMoods.GENEROUS);
+        }
+
+        // Зелье бармена — разблокирует секреты
+        if (set.equals(Set.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE))) {
+            user.setSecretUnlocked(true);
+            return new MixResponse(DrinkType.ZELYE_BARMENA, 0, user.getBalance(), mood);
+        }
+
+        // Армагеддон — обнуляет баланс и ставит HOSTILE
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
+                Ingredient.WHISKY, Ingredient.GIN))) {
+            user.setBalance(0);
+            user.setBarmenMood(BarmenMoods.HOSTILE);
+            return new MixResponse(DrinkType.ARMAGEDDON, 0, 0, BarmenMoods.HOSTILE);
+        }
+
+        // Обычный поиск напитка
         var foundDrink = RecipeMenu.findByIngredients(ingredients);
         if (foundDrink.isEmpty()) {
             throw new UnknownRecipeException(user.getBalance(), mood);
