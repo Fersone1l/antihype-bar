@@ -63,6 +63,7 @@ public class InMemoryUserStorage implements UserStorage {
             user.setRank(Rank.BEGINNER);
             user.setBarClosed(false);
             user.setBarmenMood(BarmenMoods.NORMAL);
+            user.setSecretUnlocked(false);
         }
         return new ResetResponse("ok");
     }

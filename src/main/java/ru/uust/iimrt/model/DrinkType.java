@@ -206,7 +206,38 @@ public enum DrinkType {
 
             List.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC)
     ),
-    // В конец enum добавь:
+    // В конец enum, перед SECRET:
+
+    VOZDOKH("Воздух", false, true,
+            Map.of(),
+            Map.of(),
+            List.of()
+    ),
+
+    MERTVEC("Мертвец", false, true,
+            Map.of(),
+            Map.of(),
+            List.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK)
+    ),
+
+    OSHIBA_BARMENA("Ошибка бармена", false, true,
+            Map.of(),
+            Map.of(),
+            List.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK)
+    ),
+
+    ZELYE_BARMENA("Зелье бармена", false, true,
+            Map.of(),
+            Map.of(),
+            List.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE)
+    ),
+
+    ARMAGEDDON("Армагеддон", false, true,
+            Map.of(),
+            Map.of(),
+            List.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA, Ingredient.WHISKY, Ingredient.GIN)
+    ),
+
     SECRET("Секретный коктейль", false, true,
             Map.of(),
             Map.of(),

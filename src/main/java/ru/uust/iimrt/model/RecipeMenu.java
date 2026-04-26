@@ -48,6 +48,31 @@ public class RecipeMenu {
                 Ingredient.VODKA, Ingredient.GIN, Ingredient.COLA,
                 Ingredient.RUM, Ingredient.TEQUILA
         ));
+        // В static блок добавить:
+
+// Воздух
+        menu.put(DrinkType.VOZDOKH, List.of());
+
+// Мертвец
+        menu.put(DrinkType.MERTVEC, List.of(
+                Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK
+        ));
+
+// Ошибка бармена
+        menu.put(DrinkType.OSHIBA_BARMENA, List.of(
+                Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK
+        ));
+
+// Зелье бармена
+        menu.put(DrinkType.ZELYE_BARMENA, List.of(
+                Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE
+        ));
+
+// Армагеддон
+        menu.put(DrinkType.ARMAGEDDON, List.of(
+                Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
+                Ingredient.WHISKY, Ingredient.GIN
+        ));
     }
 
     /**

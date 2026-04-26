@@ -129,7 +129,7 @@ public class BarService {
             throw new UnknownRecipeException(user.getBalance(), mood);
         }
 
-        BarmenMoods newMood = checkSecretMix(ingredients, mood);
+        BarmenMoods newMood = checkSecretMix(ingredients, mood, user);
         if (newMood != null) {
             user.setBarmenMood(newMood);
             return new MixResponse(
@@ -174,26 +174,35 @@ public class BarService {
         return new MixResponse(drink, price, user.getBalance(), user.getBarmenMood());
     }
 
-    private BarmenMoods checkSecretMix(List<Ingredient> ingredients, BarmenMoods currentMood) {
+    private BarmenMoods checkSecretMix(List<Ingredient> ingredients, BarmenMoods currentMood, User user) {
         Set<Ingredient> set = new HashSet<>(ingredients);
 
+        // Воздух — ничего не делает
+        if (set.isEmpty()) {
+            return null; // Просто бесплатный напиток
+        }
+
+        // Мертвец — удваивает баланс
+        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
+            user.setBalance(user.getBalance() * 2);
+            return currentMood;
+        }
+
+        // Ошибка бармена — макс настроение
         if (set.equals(Set.of(Ingredient.TEQUILA, Ingredient.ICE, Ingredient.MILK))) {
             return BarmenMoods.GENEROUS;
         }
 
+        // Зелье бармена — разблокирует секреты
+        if (set.equals(Set.of(Ingredient.GIN, Ingredient.JUICE, Ingredient.TONIC, Ingredient.ICE))) {
+            user.setSecretUnlocked(true);
+            return currentMood;
+        }
+
+        // Армагеддон — hostile
         if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.TEQUILA,
                 Ingredient.WHISKY, Ingredient.GIN))) {
             return BarmenMoods.HOSTILE;
-        }
-
-        if (set.equals(Set.of(Ingredient.VODKA, Ingredient.RUM, Ingredient.MILK))) {
-            return switch (currentMood) {
-                case GENEROUS -> BarmenMoods.FRIENDLY;
-                case FRIENDLY -> BarmenMoods.GRUMPY;
-                case NORMAL -> BarmenMoods.HOSTILE;
-                case GRUMPY -> BarmenMoods.HOSTILE;
-                default -> currentMood;
-            };
         }
 
         return null;

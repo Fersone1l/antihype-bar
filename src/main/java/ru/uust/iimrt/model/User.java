@@ -12,12 +12,15 @@ public class User {
     private int balance;
     private boolean isBarClosed;
     private BarmenMoods barmenMood;
+    private boolean secretUnlocked;  // ← новое поле
 
-    public User(String token, Rank rank, int balance, boolean isBarClosed, BarmenMoods barmenMood) {
+    public User(String token, String id, Rank rank, int balance, boolean isBarClosed, BarmenMoods barmenMood) {
         this.token = token;
+        this.id = id;
         this.rank = rank;
         this.balance = balance;
         this.isBarClosed = isBarClosed;
         this.barmenMood = barmenMood;
+        this.secretUnlocked = false;
     }
 }
