@@ -8,6 +8,7 @@ import ru.uust.iimrt.dto.response.CreateResponse;
 import ru.uust.iimrt.dto.response.ProfileResponse;
 import ru.uust.iimrt.dto.response.ResetResponse;
 import ru.uust.iimrt.service.AuthService;
+import ru.uust.iimrt.util.TokenUtils;
 
 @RestController
 @Slf4j
@@ -26,12 +27,14 @@ public class AuthController {
     @ResponseStatus(HttpStatus.OK)
     public ResetResponse resetUser(@RequestHeader("Authorization") String authorization) {
         authService.reset(authorization);
-        return authService.reset(authorization);  // 200 OK, пустое тело
+        String token = TokenUtils.extractToken(authorization);
+        return authService.reset(token);  // 200 OK, пустое тело
     }
 
     @GetMapping("/profile")
     @ResponseStatus(HttpStatus.OK)
     public ProfileResponse getProfile(@RequestHeader("Authorization") String authorization) {
-        return authService.getProfile(authorization);
+        String token = TokenUtils.extractToken(authorization);
+        return authService.getProfile(token);
     }
 }

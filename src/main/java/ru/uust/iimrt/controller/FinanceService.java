@@ -8,6 +8,7 @@ import ru.uust.iimrt.dto.response.BalanceResponse;
 import ru.uust.iimrt.dto.response.HistoryResponse;
 import ru.uust.iimrt.dto.response.TipResponse;
 import ru.uust.iimrt.service.PaymentService;
+import ru.uust.iimrt.util.TokenUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -21,13 +22,15 @@ public class FinanceService {
     @GetMapping("/history")
     @ResponseStatus(HttpStatus.OK)
     public HistoryResponse getHistory(@RequestHeader("Authorization") String authorization) {
+        String token = TokenUtils.extractToken(authorization);
         return null;
     }
 
     @GetMapping("/balance")
     @ResponseStatus(HttpStatus.OK)
     public BalanceResponse getBalance(@RequestHeader("Authorization") String authorization) {
-        return paymentService.getBalance(authorization);
+        String token = TokenUtils.extractToken(authorization);
+        return paymentService.getBalance(token);
     }
 
     @PostMapping("/tip")
@@ -35,8 +38,9 @@ public class FinanceService {
     public TipResponse tipBarmen(
             @RequestHeader("Authorization") String authorization,
             @RequestBody Map<String, List<String>> request) {
+        String token = TokenUtils.extractToken(authorization);
         List<String> amount = request.get("amount");
-        return paymentService.tipBarmen(authorization, amount.get(0));
+        return paymentService.tipBarmen(token, amount.get(0));
     }
 
 }

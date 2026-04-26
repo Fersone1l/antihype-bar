@@ -2,60 +2,32 @@ package ru.uust.iimrt.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import ru.uust.iimrt.dto.response.IngredientsMenuResponse;
-import ru.uust.iimrt.dto.response.MenuResponse;
-import ru.uust.iimrt.dto.response.OrderResponse;
+import ru.uust.iimrt.dto.response.*;
 import ru.uust.iimrt.model.*;
 import ru.uust.iimrt.storage.BarStorage;
+import ru.uust.iimrt.storage.UserStorage;
+import ru.uust.iimrt.util.TimeUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class BarService {
     private final BarStorage barStorage;
-    private final AuthService authService;
+    private final UserStorage userStorage;
 
-    public OrderResponse makeOrder(String token, String time, DrinkType drink) {
-        User user = authService.getUserByToken(token);
-        BarmenMoods mood = calculateMood(user, time);
-        boolean isNight = Menu.isNightTime(time);
-        DrinkType favorite = barStorage.getFavoriteDrink(token);
-        boolean isFavorite = (drink == favorite);
-
-        // Проверяем, доступен ли напиток сейчас
-        if (drink.isNightOnly() && !isNight) {
-            //return OrderResponse.error("unknown_drink", user.getBalance(), mood);
-            throw new IllegalArgumentException("error");
+    /**
+     * Получить меню с ценами в зависимости от настроения и времени
+     */
+    public MenuResponse getMenu(String token, String time) {
+        User user = userStorage.getUserByToken(token);
+        if (user == null) {
+            throw new RuntimeException("User not found");
         }
 
-        int price = drink.getPrice(mood, isFavorite);
-
-        // Проверяем баланс
-        if (user.getBalance() < price) {
-            throw new IllegalArgumentException("error");
-        }
-
-        // Выполняем заказ
-        Order order = barStorage.makeOrder(token, drink, mood, isNight, isFavorite);
-        user.setBalance(user.getBalance() - price);
-
-        return new OrderResponse(
-                drink,
-                price,
-                user.getBalance(),
-                mood.toString()
-        );
-    }
-
-
-    public MenuResponse getMenu (String token, String time){
-        User user = authService.getUserByToken(token);
-        BarmenMoods mood = user.getBarmenMood();
-        boolean isNight = Menu.isNightTime(time);
+        String validTime = TimeUtils.extractTime(time);
+        BarmenMoods mood = calculateMood(user, validTime);
+        boolean isNight = TimeUtils.isNightTime(validTime);
         DrinkType favorite = barStorage.getFavoriteDrink(token);
 
         LinkedHashMap<DrinkType, Integer> prices = Menu.getMenu(mood, isNight, favorite);
@@ -85,31 +57,178 @@ public class BarService {
         return response;
     }
 
-    private BarmenMoods calculateMood(User user, String time) {
-        BarmenMoods baseMood = user.getBarmenMood();
-        int hour = Integer.parseInt(time.split(":")[0]);
-
-        if (hour >= 0 && hour < 6) {
-            return shiftMood(baseMood, 1);   // Ночь — добрее
-        }
-        if (hour >= 6 && hour < 10) {
-            return shiftMood(baseMood, -1);  // Утро — злее
-        }
-        if (hour >= 18 && hour < 22) {
-            return shiftMood(baseMood, 1);   // Вечер — добрее
-        }
-        if (hour >= 22) {
-            return shiftMood(baseMood, 2);   // Поздний вечер — самый добрый
+    /**
+     * Сделать заказ напитка
+     */
+    public OrderResponse makeOrder(String token, String time, DrinkType drink) {
+        User user = userStorage.getUserByToken(token);
+        if (user == null) {
+            throw new RuntimeException("User not found");
         }
 
-        return baseMood;  // День — без изменений
+        String validTime = TimeUtils.extractTime(time);
+        BarmenMoods mood = calculateMood(user, validTime);
+        boolean isNight = TimeUtils.isNightTime(validTime);
+        DrinkType favorite = barStorage.getFavoriteDrink(token);
+
+        // Проверяем доступность напитка в зависимости от времени суток
+        if (isNight && !drink.isNightOnly()) {
+            return OrderResponse.error("unknown_drink", user.getBalance(), mood);
+        }
+        if (!isNight && drink.isNightOnly()) {
+            return OrderResponse.error("unknown_drink", user.getBalance(), mood);
+        }
+
+        boolean isFavorite = (drink == favorite);
+        int price = drink.getPrice(mood, isFavorite);
+
+        // Проверяем баланс
+        if (user.getBalance() < price) {
+            return OrderResponse.error("insufficient_funds", price, user.getBalance(), mood);
+        }
+
+        // Выполняем заказ
+        barStorage.makeOrder(token, drink, mood, "order", isNight, isFavorite);
+        user.setBalance(user.getBalance() - price);
+
+        // Обновляем статистику
+        updateUserStats(user);
+
+        // Проверяем изменение настроения
+        checkMoodChange(user, validTime);
+
+        return new OrderResponse(drink, price, user.getBalance(), user.getBarmenMood());
     }
 
-    private BarmenMoods shiftMood(BarmenMoods current, int shift) {
-        BarmenMoods[] moods = BarmenMoods.values();
-        int newIndex = current.ordinal() + shift;
-        if (newIndex < 0) newIndex = 0;
-        if (newIndex >= moods.length) newIndex = moods.length - 1;
-        return moods[newIndex];
+    /**
+     * Смешать коктейль из ингредиентов
+     */
+    public MixResponse mixDrinks(String token, String time, List<String> ingredientNames) {
+        User user = userStorage.getUserByToken(token);
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        String validTime = TimeUtils.extractTime(time);
+        BarmenMoods mood = calculateMood(user, validTime);
+        boolean isNight = TimeUtils.isNightTime(validTime);
+
+        // Конвертируем русские названия в enum
+        List<Ingredient> ingredients;
+        try {
+            ingredients = ingredientNames.stream()
+                    .map(Ingredient::fromRussianName)
+                    .toList();
+        } catch (IllegalArgumentException e) {
+            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+        }
+
+        // Ищем напиток по ингредиентам
+        var foundDrink = RecipeMenu.findByIngredients(ingredients);
+        if (foundDrink.isEmpty()) {
+            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+        }
+
+        DrinkType drink = foundDrink.get();
+
+        // Проверяем доступность напитка
+        if (isNight && !drink.isNightOnly()) {
+            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+        }
+        if (!isNight && drink.isNightOnly()) {
+            return MixResponse.error("unknown_recipe", user.getBalance(), mood);
+        }
+
+        DrinkType favorite = barStorage.getFavoriteDrink(token);
+        boolean isFavorite = (drink == favorite);
+        int price = drink.getPrice(mood, isFavorite);
+
+        // Проверяем баланс
+        if (user.getBalance() < price) {
+            return MixResponse.error("insufficient_funds", price, user.getBalance(), mood);
+        }
+
+        // Выполняем заказ через mix
+        barStorage.makeOrder(token, drink, mood, "mix", isNight, isFavorite);
+        user.setBalance(user.getBalance() - price);
+        updateUserStats(user);
+        checkMoodChange(user, validTime);
+
+        return new MixResponse(drink, price, user.getBalance(), user.getBarmenMood());
+    }
+
+    /**
+     * Расчет настроения бармена с учетом времени суток
+     */
+    private BarmenMoods calculateMood(User user, String time) {
+        if (user.isBarClosed()) {
+            return BarmenMoods.HOSTILE;
+        }
+
+        BarmenMoods baseMood = user.getBarmenMood();
+        int hour;
+
+        try {
+            hour = Integer.parseInt(time.split(":")[0]);
+        } catch (Exception e) {
+            return baseMood;
+        }
+
+        // Ночное время (00:00 - 06:00) — бармен добрее
+        if (hour >= 0 && hour < 6) {
+            return baseMood.shift(1);
+        }
+
+        // Утреннее время (06:00 - 10:00) — бармен ворчливый
+        if (hour >= 6 && hour < 10) {
+            return baseMood.shift(-1);
+        }
+
+        // Вечернее время (18:00 - 22:00) — бармен дружелюбный
+        if (hour >= 18 && hour < 22) {
+            return baseMood.shift(1);
+        }
+
+        // Поздний вечер (22:00 - 00:00) — бармен щедрый
+        if (hour >= 22) {
+            return baseMood.shift(2);
+        }
+
+        // Днём — обычное настроение
+        return baseMood;
+    }
+
+    /**
+     * Обновление статистики пользователя
+     */
+    private void updateUserStats(User user) {
+        int totalOrders = barStorage.getTotalOrders(user.getToken());
+
+        // Повышаем ранг каждые 5 заказов
+        if (totalOrders > 0 && totalOrders % 5 == 0) {
+            Rank[] ranks = Rank.values();
+            int currentIndex = user.getRank().ordinal();
+
+            if (currentIndex < ranks.length - 1) {
+                user.setRank(ranks[currentIndex + 1]);
+            }
+        }
+    }
+
+    /**
+     * Проверка изменения настроения после заказа
+     */
+    private void checkMoodChange(User user, String time) {
+        int totalOrders = barStorage.getTotalOrders(user.getToken());
+
+        // Каждый 10-й заказ улучшает настроение
+        if (totalOrders > 0 && totalOrders % 10 == 0) {
+            user.setBarmenMood(user.getBarmenMood().shift(1));
+        }
+
+        // Каждый 3-й заказ ночью делает щедрее
+        if (totalOrders > 0 && totalOrders % 3 == 0 && TimeUtils.isNightTime(time)) {
+            user.setBarmenMood(user.getBarmenMood().shift(1));
+        }
     }
 }

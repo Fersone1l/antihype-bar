@@ -9,6 +9,8 @@ import ru.uust.iimrt.dto.response.MenuResponse;
 import ru.uust.iimrt.dto.response.MixResponse;
 import ru.uust.iimrt.dto.response.OrderResponse;
 import ru.uust.iimrt.service.BarService;
+import ru.uust.iimrt.util.TimeUtils;
+import ru.uust.iimrt.util.TokenUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -23,16 +25,18 @@ public class BarController {
     @ResponseStatus(HttpStatus.OK)
     public OrderResponse makeOrder(
             @RequestHeader("Authorization") String authorization,
-            @RequestHeader("X-Time") String time,
+            @RequestHeader(value = "X-Time", required = false) String time,
             @RequestBody OrderRequest request) {
-        return barService.makeOrder(authorization, time, request.getName());
+        String validTime = TimeUtils.extractTime(time);
+        String token = TokenUtils.extractToken(authorization);
+        return barService.makeOrder(token, validTime, request.getName());
     }
 
 //    @PostMapping("/mix")
 //    @ResponseStatus(HttpStatus.OK)
 //    public MixResponse mixDrinks(
 //            @RequestHeader("Authorization") String authorization,
-//            @RequestHeader("X-Time") String time,
+//            @RequestHeader(value = "X-Time", required = false) String time,
 //            @RequestBody Map<String, List<String>> request) {
 //        List<String> ingredients = request.get("ingredients");
 //        return BarService.mixDrinks(authorization, time, ingredients);
@@ -41,8 +45,10 @@ public class BarController {
     @GetMapping("/menu")
     @ResponseStatus(HttpStatus.OK)
     public MenuResponse getMenu(@RequestHeader("Authorization") String authorization,
-                                @RequestHeader("X-Time") String time) {
-        return barService.getMenu(authorization, time);
+                                @RequestHeader(value = "X-Time", required = false) String time) {
+        String token = TokenUtils.extractToken(authorization);
+        String validTime = TimeUtils.extractTime(time);
+        return barService.getMenu(token, validTime);
     }
 
 
