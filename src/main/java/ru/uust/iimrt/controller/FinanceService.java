@@ -19,11 +19,12 @@ import java.util.Map;
 public class FinanceService {
     private final PaymentService paymentService;
 
+    // FinanceService.java
     @GetMapping("/history")
     @ResponseStatus(HttpStatus.OK)
     public HistoryResponse getHistory(@RequestHeader("Authorization") String authorization) {
         String token = TokenUtils.extractToken(authorization);
-        return null;
+        return paymentService.getHistory(token);
     }
 
     @GetMapping("/balance")

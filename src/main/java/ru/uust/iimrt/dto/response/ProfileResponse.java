@@ -1,11 +1,13 @@
 package ru.uust.iimrt.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Data;
 import ru.uust.iimrt.model.DrinkType;
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"status", "id", "rank", "total_orders", "unique_drinks", "favorite_drink", "bar_closed"})
 public class ProfileResponse {
     private String status = "ok";
     private String id;
@@ -17,7 +19,6 @@ public class ProfileResponse {
 
     public ProfileResponse(String id, String rank, long totalOrders,
                            long uniqueDrinks, DrinkType favoriteDrink, boolean barClosed) {
-        this.status = "ok";
         this.id = id;
         this.rank = rank;
         this.total_orders = totalOrders;

@@ -1,12 +1,14 @@
 package ru.uust.iimrt.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Data;
 import ru.uust.iimrt.model.DrinkType;
 import ru.uust.iimrt.model.BarmenMoods;
 
 @Data
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"status", "error", "drink", "price", "balance", "mood_level"})
 public class MixResponse {
     private String status;
     private String error;

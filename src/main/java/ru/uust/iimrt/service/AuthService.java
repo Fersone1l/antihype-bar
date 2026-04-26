@@ -17,8 +17,8 @@ public class AuthService {
         return userStorage.create();
     }
 
-    public ProfileResponse getProfile(String authorization) {
-        return null;
+    public ProfileResponse getProfile(String token) {
+        return userStorage.profile(token);
     }
 
     public ResetResponse reset(String authorization) {

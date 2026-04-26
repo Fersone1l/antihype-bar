@@ -6,6 +6,7 @@ import ru.uust.iimrt.dto.response.CreateResponse;
 import ru.uust.iimrt.dto.response.ProfileResponse;
 import ru.uust.iimrt.dto.response.ResetResponse;
 import ru.uust.iimrt.model.BarmenMoods;
+import ru.uust.iimrt.model.DrinkType;
 import ru.uust.iimrt.model.Rank;
 import ru.uust.iimrt.model.User;
 import ru.uust.iimrt.storage.BarStorage;
@@ -14,6 +15,7 @@ import ru.uust.iimrt.storage.UserStorage;
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 public class InMemoryUserStorage implements UserStorage {
@@ -28,15 +30,16 @@ public class InMemoryUserStorage implements UserStorage {
         User user = users.get(token);
         if (user == null) return null;
 
-        int totalOrders = barStorage != null ? barStorage.getTotalOrders(token) : 0;
-        int uniqueDrinks = barStorage != null ? barStorage.getUniqueDrinks(token).size() : 0;
+        long totalOrders = barStorage != null ? barStorage.getTotalOrders(token) : 0;
+        Set<DrinkType> uniqueDrinks = barStorage != null ? barStorage.getUniqueDrinks(token) : Set.of();
+        DrinkType favorite = barStorage != null ? barStorage.getFavoriteDrink(token) : null;
 
         return new ProfileResponse(
-                "BAR-" + String.format("%04d", getUserId(token)),
+                "BAR-" + String.format("%04d", getUserIdByToken(token)),
                 user.getRank().getDisplayName(),
                 totalOrders,
-                uniqueDrinks,
-                barStorage != null ? barStorage.getFavoriteDrink(token) : null,
+                uniqueDrinks.size(),
+                favorite,
                 user.isBarClosed()
         );
     }
@@ -47,12 +50,7 @@ public class InMemoryUserStorage implements UserStorage {
         String strId = String.format("BAR-%04d", usersCount);
         String token = generateMD5(strId);
 
-        users.put(token, new User(token,
-                Rank.BEGINNER,
-                100,
-                false,
-                BarmenMoods.NORMAL)
-        );
+        users.put(token, new User(token, strId, Rank.BEGINNER, 100, false, BarmenMoods.NORMAL));
 
         return new CreateResponse("ok", strId, token);
     }
@@ -106,4 +104,17 @@ public class InMemoryUserStorage implements UserStorage {
             throw new RuntimeException("MD5 generation failed", e);
         }
     }
+
+    // Вспомогательный метод
+    private long getUserIdByToken(String token) {
+        int index = 1;
+        for (String key : users.keySet()) {
+            if (key.equals(token)) return index;
+            index++;
+        }
+        return 0;
+    }
+
+
+
 }
