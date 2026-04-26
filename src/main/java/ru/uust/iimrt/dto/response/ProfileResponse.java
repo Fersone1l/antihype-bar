@@ -2,6 +2,7 @@ package ru.uust.iimrt.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import ru.uust.iimrt.model.DrinkType;
 
 @Data
 @AllArgsConstructor
@@ -15,7 +16,7 @@ public class ProfileResponse {
 
     long unique_drinks;
 
-    Drink favorite_drink;
+    DrinkType favorite_drink;
 
     boolean bar_closed;
 }

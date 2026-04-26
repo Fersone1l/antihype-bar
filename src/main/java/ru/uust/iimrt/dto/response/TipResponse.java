@@ -5,8 +5,10 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class CreateResponse {
-    String status = "ok";
-    private String id;
-    private String token;
+public class TipResponse {
+    int tip;
+
+    int balance;
+
+    String mood_level;
 }

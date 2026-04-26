@@ -5,8 +5,6 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class CreateResponse {
-    String status = "ok";
-    private String id;
-    private String token;
+public class ResetResponse {
+    String status;
 }

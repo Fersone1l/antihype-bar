@@ -1,23 +1,32 @@
 package ru.uust.iimrt.service;
 
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.uust.iimrt.dto.response.CreateResponse;
-import ru.uust.iimrt.dto.response.ProfileResponse;
+import ru.uust.iimrt.dto.response.ResetResponse;
 import ru.uust.iimrt.model.User;
+import ru.uust.iimrt.dto.response.ProfileResponse;
 import ru.uust.iimrt.storage.UserStorage;
 
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Service
 public class AuthService {
     private final UserStorage userStorage;
 
-    CreateResponse create() {
+    public CreateResponse create() {
         return userStorage.create();
     }
 
-    ProfileResponse getProfile(String authorization) {
+    public ProfileResponse getProfile(String authorization) {
         return null;
+    }
+
+    public ResetResponse reset(String authorization) {
+        return userStorage.reset(authorization);
+    }
+
+    public User getUserByToken(String authorization) {
+        return userStorage.getUserByToken(authorization);
     }
 
 }

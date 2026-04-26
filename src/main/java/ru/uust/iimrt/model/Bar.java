@@ -5,15 +5,9 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class User {
-    private String token;
-
-    private Rank rank;
-
-    private int balance;
+public class Bar {
 
     private boolean isBarClosed;
 
     private BarmenMoods barmenMood;
 }
-

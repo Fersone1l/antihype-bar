@@ -5,10 +5,13 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class Order {
-    private DrinkType drink;
+public class Drink {
 
-    private int price;
+    String name;
 
-    String method;
+    int price;
+
+    boolean isSecret;
+
+    String effect;
 }

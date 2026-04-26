@@ -1,7 +1,10 @@
 package ru.uust.iimrt.storage.memory;
 
+import org.springframework.stereotype.Component;
 import ru.uust.iimrt.dto.response.CreateResponse;
 import ru.uust.iimrt.dto.response.ProfileResponse;
+import ru.uust.iimrt.dto.response.ResetResponse;
+import ru.uust.iimrt.model.BarmenMoods;
 import ru.uust.iimrt.model.Rank;
 import ru.uust.iimrt.model.User;
 import ru.uust.iimrt.storage.UserStorage;
@@ -10,36 +13,47 @@ import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 
+@Component
 public class InMemoryUserStorage implements UserStorage {
     private final Map<String, User> users = new HashMap<>();
     private static long usersCount = 0;
 
     @Override
+    public ProfileResponse profile(String token) {
+        return null;
+    }
+
+    @Override
     public CreateResponse create() {
-        String strId = "BAR-" + usersCount;
+        usersCount++;
+        String strId = String.format("BAR-%04d", usersCount);
         String token = generateMD5(strId);
 
-        users.put(token, new User(token, Rank.BEGGINER, ));
-        usersCount++;
+        users.put(token, new User(token,
+                Rank.BEGGINER,
+                100,
+                false,
+                BarmenMoods.NORMAL)
+        );
 
-        return new CreateResponse(token, strId);
+        return new CreateResponse("ok", strId, token);
     }
 
     @Override
-    public void reset(String token) {
-        //
+    public ResetResponse reset(String token) {
+        return new ResetResponse("ok");
     }
 
-    @Override
-    public ProfileResponse profile(String token) {
-        User user = users.get(token);
-        return new ProfileResponse(user.getToken(),
-                UserToStringRank(user),
-                user.getTotalOrders(),
-                user.getUniqueDrinks().size(),
-                user.getFavorite_drink(),
-                );
-    }
+//    @Override
+//    public ProfileResponse profile(String token) {
+//        User user = users.get(token);
+//        return new ProfileResponse(user.getToken(),
+//                UserToStringRank(user),
+//                user.getTotalOrders(),
+//                user.getUniqueDrinks().size(),
+//                user.getFavorite_drink(),
+//                );
+//    }
 
     @Override
     public Boolean containsUserToken(String token) {
@@ -48,7 +62,7 @@ public class InMemoryUserStorage implements UserStorage {
 
     @Override
     public User getUserByToken(String token) {
-        return null;
+        return users.get(token);
     }
 
     private static String generateMD5(String input) {
